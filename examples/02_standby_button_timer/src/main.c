@@ -25,12 +25,13 @@ static uint16_t wakeCount = 0;
 
 static void setup(void)
 {
-    // Chân không dùng về ANALOG: chân thả nổi làm dòng Standby tăng từ ~7µA lên ≥ 50µA (đo thực tế)
+    // Chân không dùng về ANALOG: chân thả nổi làm dòng Standby tăng từ ~7µA lên ≥ 50µA (đo thực tế).
+    // Giữ PD1 (SWIO): PD1 ở ANALOG làm mất printf qua SWIO.
     for (uint8_t pin = 0; pin < 8; pin++)
     {
         pinModePort(GPIOA, pin, ANALOG);
         pinModePort(GPIOC, pin, ANALOG);
-        pinModePort(GPIOD, pin, ANALOG);
+        if (pin != 1) pinModePort(GPIOD, pin, ANALOG);
     }
     pinMode(LED_PIN, OUTPUT); // Chân nút được powerConfigureWakeup() đặt Pull-up bên dưới
     powerConfigureWakeup(&wakeupConfig);

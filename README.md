@@ -14,7 +14,7 @@ Thư viện quản lý năng lượng cho vi điều khiển CH32V003: đưa chi
 - **Hai mức ngủ, cùng cách dùng:** `powerSleep()` (hạ clock HSI/256, tắt clock ngoại vi; đo thực tế **371µA**) và `powerStandby()` (tắt mọi clock trừ LSI; đo thực tế **6.7µA**). Số đo trên J4M6, 3.3V, chân không dùng đặt `ANALOG`.
 - **Thức dậy chạy tiếp, giữ RAM:** CH32V003 thức từ cả Sleep lẫn Standby đều chạy tiếp lệnh ngay sau hàm ngủ, không reset về đầu `main()`. Clock hệ thống, clock ngoại vi, SysTick và chế độ SWIO được khôi phục như trước khi ngủ.
 - **Nhiều nguồn đánh thức cùng lúc:** nhiều chân (sườn xuống / lên / cả hai) cộng thêm hẹn giờ. Nguồn nào xảy ra trước thì chip thức trước.
-- **Hẹn giờ từ vài ms tới hàng giờ:** tự chia thành nhiều lần AWU (mỗi lần tối đa ~30 giây). Cấu hình được tính sẵn trong `powerConfigureWakeup()`, không tính lúc clock thấp.
+- **Hẹn giờ từ vài ms tới hàng giờ:** tự chia thành nhiều lần AWU (mỗi lần tối đa ~30 giây). Cấu hình được tính sẵn trong `powerConfigureWakeup()`, không tính lúc clock thấp. Hẹn giờ giữ LSI + AWU chạy suốt lúc ngủ: Standby tốn thêm **~1.2µA** so với chỉ thức bằng chân (đo trên bàn test).
 - **Không chiếm ngắt:** dùng sự kiện EXTI (WFE), `EXTI7_0_IRQHandler` vẫn để dành cho chương trình.
 
 ---
@@ -54,9 +54,11 @@ Các macro sau có giá trị mặc định, ghi đè được trong `include/sy
 > {
 >     pinModePort(GPIOA, pin, ANALOG);
 >     pinModePort(GPIOC, pin, ANALOG);
->     pinModePort(GPIOD, pin, ANALOG); // PD1 ở ANALOG vẫn nạp được khi SWD bật (đã thử trên J4M6)
+>     if (pin != 1) pinModePort(GPIOD, pin, ANALOG); // Giữ PD1 (SWIO) nếu dùng printf qua SWIO
 > } // Sau đó cấu hình lại các chân đang dùng
 > ```
+>
+> PD1 ở `ANALOG` vẫn nạp code được, nhưng làm **mất `printf` qua SWIO** (terminal đang chạy không nhận được dữ liệu). Không ảnh hưởng dòng Standby (đo được cùng mức).
 >
 > ⚠️ **Chip đang ngủ thì không nạp được** (SWD tắt trong lúc ngủ khi `POWER_SLEEP_DISABLE_SWD = 1`). Muốn nạp lại: tắt rồi cấp lại nguồn để chip vào khoảng chờ `delayMs(1000)` đầu `main()`. Nếu không chủ động tắt/bật nguồn được (VD: nguồn cố định), dùng `rvprog -e` hoặc WCH-LinkUtility: rút nguồn chip, bấm xóa, cấp nguồn ngay.
 

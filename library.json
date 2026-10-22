@@ -1,6 +1,6 @@
 {
   "name": "ch32v003_power",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Thư viện quản lý năng lượng cho CH32V003 (J4M6, A4M6, F4P6): Sleep / Standby, đánh thức bằng sườn trên chân bất kỳ và/hoặc hẹn giờ AWU, thức dậy chạy tiếp và giữ RAM.",
   "keywords": [
     "power",
