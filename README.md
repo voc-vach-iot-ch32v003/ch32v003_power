@@ -11,7 +11,15 @@ Thư viện quản lý năng lượng cho vi điều khiển CH32V003: đưa chi
 
 ## 🚀 Tính năng nổi bật
 
-- **Hai mức ngủ, cùng cách dùng:** `powerSleep()` (hạ clock HSI/256, tắt clock ngoại vi; đo thực tế **371µA**) và `powerStandby()` (tắt mọi clock trừ LSI; đo thực tế **6.7µA**). Số đo trên J4M6, 3.3V, chân không dùng đặt `ANALOG`.
+- **Hai mức ngủ, cùng cách dùng:** `powerSleep()` (hạ clock HSI/256, tắt clock ngoại vi) và `powerStandby()` (tắt mọi clock trừ LSI).
+
+| Trạng thái (J4M6, 3.3V, chân không dùng đặt `ANALOG`) | Dòng đo thực tế |
+| :-- | :-- |
+| Chạy 48MHz | 3.87mA |
+| `powerSleep()` | 381µA |
+| `powerStandby()`, thức bằng hẹn giờ (LSI + AWU chạy) | 10.4µA |
+| `powerStandby()`, chỉ thức bằng chân | **~8–10µA** (7.7µA đo bằng thời gian nạp tụ, 9.5µA đo bằng áp trên trở; cả 2 máy đo khớp trở chuẩn trong 0.1%) |
+
 - **Thức dậy chạy tiếp, giữ RAM:** CH32V003 thức từ cả Sleep lẫn Standby đều chạy tiếp lệnh ngay sau hàm ngủ, không reset về đầu `main()`. Clock hệ thống, clock ngoại vi, SysTick và chế độ SWIO được khôi phục như trước khi ngủ.
 - **Nhiều nguồn đánh thức cùng lúc:** nhiều chân (sườn xuống / lên / cả hai) cộng thêm hẹn giờ. Nguồn nào xảy ra trước thì chip thức trước.
 - **Hẹn giờ từ vài ms tới hàng giờ:** tự chia thành nhiều lần AWU (mỗi lần tối đa ~30 giây). Cấu hình được tính sẵn trong `powerConfigureWakeup()`, không tính lúc clock thấp. Hẹn giờ giữ LSI + AWU chạy suốt lúc ngủ: Standby tốn thêm **~1.2µA** so với chỉ thức bằng chân (đo trên bàn test).
@@ -47,7 +55,7 @@ Các macro sau có giá trị mặc định, ghi đè được trong `include/sy
 >
 > ⚠️ **SysTick dừng trong lúc ngủ:** `millis()` / `micros()` không tính phần thời gian ngủ.
 >
-> ⚠️ **Chân không dùng phải đặt `ANALOG` trước khi ngủ**, đừng để Input thả nổi: chân trôi ở mức lưng chừng làm bộ đệm ngõ vào CMOS dẫn xuyên. Đo thực tế trên J4M6 ở Standby: chân thả nổi **≥ 50µA**, chân `ANALOG` **6.7µA**. Thư viện không tự đổi chân (để không làm mất trạng thái output của chương trình).
+> ⚠️ **Chân không dùng phải đặt `ANALOG` trước khi ngủ**, đừng để Input thả nổi: chân trôi ở mức lưng chừng làm bộ đệm ngõ vào CMOS dẫn xuyên. Dòng tăng bao nhiêu tùy mạch (lần đo đầu trên J4M6 ra hàng chục µA). Thư viện không tự đổi chân (để không làm mất trạng thái output của chương trình).
 >
 > ```c
 > for (uint8_t pin = 0; pin < 8; pin++)

@@ -25,7 +25,7 @@ static uint16_t wakeCount = 0;
 
 static void setup(void)
 {
-    // Chân không dùng về ANALOG: chân thả nổi làm dòng Standby tăng từ ~7µA lên ≥ 50µA (đo thực tế).
+    // Chân không dùng về ANALOG: chân thả nổi làm dòng Standby tăng từ ~10µA lên hàng chục µA.
     // Giữ PD1 (SWIO): PD1 ở ANALOG làm mất printf qua SWIO.
     for (uint8_t pin = 0; pin < 8; pin++)
     {
