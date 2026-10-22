@@ -11,7 +11,7 @@ Thư viện quản lý năng lượng cho vi điều khiển CH32V003: đưa chi
 
 ## 🚀 Tính năng nổi bật
 
-- **Hai mức ngủ, cùng cách dùng:** `powerSleep()` (hạ clock HSI/256, tắt clock ngoại vi) và `powerStandby()` (tắt mọi clock trừ LSI, ~10µA theo datasheet).
+- **Hai mức ngủ, cùng cách dùng:** `powerSleep()` (hạ clock HSI/256, tắt clock ngoại vi; đo thực tế **371µA**) và `powerStandby()` (tắt mọi clock trừ LSI; đo thực tế **6.7µA**). Số đo trên J4M6, 3.3V, chân không dùng đặt `ANALOG`.
 - **Thức dậy chạy tiếp, giữ RAM:** CH32V003 thức từ cả Sleep lẫn Standby đều chạy tiếp lệnh ngay sau hàm ngủ, không reset về đầu `main()`. Clock hệ thống, clock ngoại vi, SysTick và chế độ SWIO được khôi phục như trước khi ngủ.
 - **Nhiều nguồn đánh thức cùng lúc:** nhiều chân (sườn xuống / lên / cả hai) cộng thêm hẹn giờ. Nguồn nào xảy ra trước thì chip thức trước.
 - **Hẹn giờ từ vài ms tới hàng giờ:** tự chia thành nhiều lần AWU (mỗi lần tối đa ~30 giây). Cấu hình được tính sẵn trong `powerConfigureWakeup()`, không tính lúc clock thấp.
@@ -46,6 +46,19 @@ Các macro sau có giá trị mặc định, ghi đè được trong `include/sy
 > ⚠️ **Chân đánh thức:** mỗi số chân 0–7 chỉ dùng được cho một Port (VD: PC3 và PD3 dùng chung đường EXTI3). Thư viện tự bật điện trở kéo nội ngược chiều sườn: `FALLING` bật Pull-up, `RISING` / `CHANGE` bật Pull-down.
 >
 > ⚠️ **SysTick dừng trong lúc ngủ:** `millis()` / `micros()` không tính phần thời gian ngủ.
+>
+> ⚠️ **Chân không dùng phải đặt `ANALOG` trước khi ngủ**, đừng để Input thả nổi: chân trôi ở mức lưng chừng làm bộ đệm ngõ vào CMOS dẫn xuyên. Đo thực tế trên J4M6 ở Standby: chân thả nổi **≥ 50µA**, chân `ANALOG` **6.7µA**. Thư viện không tự đổi chân (để không làm mất trạng thái output của chương trình).
+>
+> ```c
+> for (uint8_t pin = 0; pin < 8; pin++)
+> {
+>     pinModePort(GPIOA, pin, ANALOG);
+>     pinModePort(GPIOC, pin, ANALOG);
+>     pinModePort(GPIOD, pin, ANALOG); // PD1 ở ANALOG vẫn nạp được khi SWD bật (đã thử trên J4M6)
+> } // Sau đó cấu hình lại các chân đang dùng
+> ```
+>
+> ⚠️ **Chip đang ngủ thì không nạp được** (SWD tắt trong lúc ngủ khi `POWER_SLEEP_DISABLE_SWD = 1`). Muốn nạp lại: tắt rồi cấp lại nguồn để chip vào khoảng chờ `delayMs(1000)` đầu `main()`. Nếu không chủ động tắt/bật nguồn được (VD: nguồn cố định), dùng `rvprog -e` hoặc WCH-LinkUtility: rút nguồn chip, bấm xóa, cấp nguồn ngay.
 
 ---
 

@@ -22,7 +22,8 @@
 void powerConfigureWakeup(const POWER_WakeupConfiguration_t* config);
 
 /**
- * @brief Chế độ Sleep: hạ clock hệ thống (HSI / 256), tắt clock ngoại vi, CPU dừng tới khi có nguồn đánh thức.
+ * @brief Chế độ Sleep: hạ clock hệ thống (HSI / 256), tắt clock ngoại vi, CPU dừng tới khi có nguồn đánh thức
+ *        (đo thực tế 371µA trên J4M6; Standby chỉ 6.7µA).
  * @details Thức dậy chạy tiếp lệnh ngay sau hàm này, RAM và trạng thái ngoại vi giữ nguyên, clock được
  *          khôi phục như trước khi ngủ.
  * @return uint8_t 1 nếu đã ngủ, 0 nếu chưa khai báo nguồn đánh thức nào (từ chối ngủ vô thời hạn).
@@ -31,12 +32,13 @@ void powerConfigureWakeup(const POWER_WakeupConfiguration_t* config);
 uint8_t powerSleep(void);
 
 /**
- * @brief Chế độ Standby: tắt mọi clock trừ LSI (dòng tiêu thụ cỡ 10µA theo datasheet), CPU dừng tới khi có
- *        nguồn đánh thức.
+ * @brief Chế độ Standby: tắt mọi clock trừ LSI (đo thực tế 6.7µA trên J4M6), CPU dừng tới khi có nguồn đánh thức.
  * @details CH32V003 thức dậy từ Standby vẫn giữ RAM và chạy tiếp lệnh ngay sau hàm này (KHÔNG reset về
  *          đầu main()). Clock được khôi phục như trước khi ngủ.
  * @return uint8_t 1 nếu đã ngủ, 0 nếu chưa khai báo nguồn đánh thức nào (từ chối ngủ vô thời hạn).
  * @note SysTick dừng trong lúc ngủ: millis() / micros() không tính phần thời gian ngủ.
+ * @warning Đặt các chân không dùng về ANALOG trước khi gọi: chân Input thả nổi làm dòng Standby tăng
+ *          từ 6.7µA lên ≥ 50µA (đo thực tế).
  */
 uint8_t powerStandby(void);
 

@@ -30,4 +30,5 @@ Ngu lan 1...
 
 - Không nhấn nút: chip tự thức khoảng mỗi 10 giây (dài hơn một chút nếu LSI của chip thấp hơn 128kHz, hiệu chỉnh bằng `POWER_LSI_FREQUENCY_HZ` trong `include/sys_config.h`).
 - Nhấn nút: chip thức ngay.
+- `setup()` đặt mọi chân không dùng về `ANALOG`: đo thực tế trên J4M6, Standby ăn 6.7µA (chân thả nổi thì ≥ 50µA).
 - Trong lúc ngủ, SWD tạm tắt (`POWER_SLEEP_DISABLE_SWD = 1`) nên terminal có thể hiện vài ký tự rác. Chip vẫn nạp lại được vì luôn có 1 giây chờ đầu `main()`.
