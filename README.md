@@ -41,7 +41,7 @@ Các macro sau có giá trị mặc định, ghi đè được trong `include/sy
 | Macro | Mặc định | Ý nghĩa |
 | :-- | :-- | :-- |
 | `POWER_LSI_FREQUENCY_HZ` | `128000` | Tần số LSI để tính thời gian hẹn giờ. LSI lệch theo từng chip: bàn test đo được 109kHz, 112kHz, 123kHz (chip ngủ dài hơn yêu cầu 4–17%). Hiệu chỉnh: ngủ 10000ms, bấm giờ thực tế `T` ms, đặt `128000 * 10000 / T`. |
-| `POWER_SLEEP_DISABLE_SWD` | `1` | `1` = tắt SWD trong lúc ngủ để không rò dòng qua mạch nạp (tự khôi phục khi thức). Terminal SWIO có thể hiện vài ký tự rác quanh lúc ngủ; nếu cần log qua `printf` ngay sau khi thức, chờ ~50ms để mạch nạp đồng bộ lại. |
+| `POWER_SLEEP_DISABLE_SWD` | `1` | `1` = tắt SWD trong lúc ngủ để không rò dòng qua mạch nạp (tự khôi phục khi thức). Trong lúc ngủ, thư viện tự bật Pull-up nội cho PD1 (SWIO) nếu PD1 chưa được dùng làm GPIO: chân SWIO bỏ trống (không cắm mạch nạp) mà thả nổi sẽ làm chip bị đánh thức liên tục (đo: xung mỗi ~15ms, 11.5µA thay vì 10.1µA). Terminal SWIO có thể hiện vài ký tự rác quanh lúc ngủ; nếu cần log qua `printf` ngay sau khi thức, chờ ~50ms để mạch nạp đồng bộ lại. |
 
 > ⚠️ **Chân đánh thức:** mỗi số chân 0–7 chỉ dùng được cho một Port (VD: PC3 và PD3 dùng chung đường EXTI3). Thư viện tự bật điện trở kéo nội ngược chiều sườn: `FALLING` bật Pull-up, `RISING` / `CHANGE` bật Pull-down.
 >

@@ -4,6 +4,10 @@
 // Bit cao nhất của SWCFG[2:0] trong AFIO_PCFR1: 1 = tắt SWD (giống ch32v003_gpio)
 #define POWER_AFIO_SWD_DISABLE (1UL << 26)
 
+// PD1 = SWIO (mọi gói vỏ). Ô cấu hình 4 bit của PD1 trong GPIOD->CFGLR
+#define POWER_SWIO_PIN 1U
+#define POWER_SWIO_CONFIG_MASK (0xFUL << (POWER_SWIO_PIN * 4))
+
 // Đường EXTI 9 nối sẵn với khối tự thức dậy (AWU) của PWR
 #define POWER_EXTI_LINE_AWU (1UL << 9)
 
@@ -184,6 +188,24 @@ static void powerWaitForWakeup(void)
     EXTI->FTENR &= ~POWER_EXTI_LINE_AWU;
 }
 
+#if POWER_SLEEP_DISABLE_SWD
+/**
+ * @brief PD1 đang là chân SWIO và an toàn để kéo lên trong lúc ngủ?
+ * @details Tắt SWD biến PD1 thành GPIO; không cắm mạch nạp thì chân thả nổi, nhiễu làm chip thức liên tục
+ *          (đo trên J4M6 Standby: xung mỗi ~15ms, trung bình 11.5µA thay vì 9.95µA). Bỏ qua nếu người dùng đã
+ *          dùng PD1 làm GPIO, hoặc (J4M6) đang lái PD4/PD5 làm output trên cùng chân 8.
+ */
+static uint8_t powerSwioNeedsPullUp(const uint32_t swdDisabled)
+{
+    if (swdDisabled) return 0;
+#if defined(CH32V003_J4M6)
+    // 2 bit MODE khác 0 = output
+    if (GPIOD->CFGLR & ((0x3UL << (4 * 4)) | (0x3UL << (5 * 4)))) return 0;
+#endif
+    return 1;
+}
+#endif
+
 static uint8_t powerEnterLowPower(const uint8_t deep)
 {
     if (!wakeupState.pinLines && !powerTimerEnabled()) return 0;
@@ -198,7 +220,17 @@ static uint8_t powerEnterLowPower(const uint8_t deep)
     const uint32_t swdDisabled = AFIO->PCFR1 & POWER_AFIO_SWD_DISABLE;
 
 #if POWER_SLEEP_DISABLE_SWD
+    // SWD tắt trong lúc ngủ: kéo PD1 lên bằng Pull-up nội để chân SWIO bỏ trống không làm chip thức liên tục
+    RCC->APB2PCENR |= RCC_APB2Periph_GPIOD;
+    const uint8_t swioPullUp = powerSwioNeedsPullUp(swdDisabled);
+    const uint32_t swioConfig = GPIOD->CFGLR & POWER_SWIO_CONFIG_MASK;
+    const uint32_t swioOutput = GPIOD->OUTDR & (1UL << POWER_SWIO_PIN);
     AFIO->PCFR1 |= POWER_AFIO_SWD_DISABLE;
+    if (swioPullUp)
+    {
+        GPIOD->CFGLR = (GPIOD->CFGLR & ~POWER_SWIO_CONFIG_MASK) | (0x8UL << (POWER_SWIO_PIN * 4)); // Input kéo lên/xuống
+        GPIOD->BSHR = 1UL << POWER_SWIO_PIN; // Chọn kéo lên
+    }
 #endif
 
     // 2. Dừng SysTick (ngắt 1ms của ch32v003_timer sẽ đánh thức CPU liên tục), chỉ giữ clock cần cho việc thức
@@ -246,7 +278,14 @@ static uint8_t powerEnterLowPower(const uint8_t deep)
     }
 
     RCC->APB1PCENR = apb1Clocks;
-    RCC->APB2PCENR = apb2Clocks | RCC_APB2Periph_AFIO;
+    RCC->APB2PCENR = apb2Clocks | RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOD;
+#if POWER_SLEEP_DISABLE_SWD
+    if (swioPullUp)
+    {
+        GPIOD->CFGLR = (GPIOD->CFGLR & ~POWER_SWIO_CONFIG_MASK) | swioConfig;
+        GPIOD->OUTDR = (GPIOD->OUTDR & ~(1UL << POWER_SWIO_PIN)) | swioOutput;
+    }
+#endif
     AFIO->PCFR1 = (AFIO->PCFR1 & ~POWER_AFIO_SWD_DISABLE) | swdDisabled;
     RCC->APB2PCENR = apb2Clocks;
     SysTick->CTLR = sysTickControl;

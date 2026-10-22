@@ -19,7 +19,7 @@
 #endif
 
 #ifndef POWER_SLEEP_DISABLE_SWD
-#define POWER_SLEEP_DISABLE_SWD 1 /**< 1 = Tắt SWD trong lúc ngủ để không rò dòng qua mạch nạp (khôi phục sau khi thức), 0 = giữ nguyên */
+#define POWER_SLEEP_DISABLE_SWD 1 /**< 1 = Tắt SWD trong lúc ngủ (khôi phục sau khi thức) và kéo lên PD1 nếu đang là SWIO để chân bỏ trống không làm chip thức liên tục, 0 = giữ nguyên */
 #endif
 
 #endif // CH32V003_POWER_DEFS_H
