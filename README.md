@@ -1,131 +1,137 @@
-# ⚡ ch32v003_power
+# 🔋 ch32v003_power
 
-Thư viện quản lý năng lượng thông minh và cấu hình ngắt đánh thức (Wakeup) cho các dòng vi điều khiển **CH32V003** (J4M6, A4M6, F4P6) trên nền framework **ch32v003fun**.
-Thư viện hỗ trợ đưa vi điều khiển vào chế độ ngủ tiết kiệm điện cực hạ dòng (Sleep / Standby), tự động hạ tần số hệ thống xuống $31.25\text{ kHz}$, quản lý clock AFIO/GPIO thông minh và tự động khôi phục xung nhịp cao (PLL 48MHz) sau khi thức giấc.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![PlatformIO](https://img.shields.io/badge/PlatformIO-Supported-orange.svg)
+![Framework](https://img.shields.io/badge/Framework-ch32v003fun-green.svg)
+![MCU](https://img.shields.io/badge/MCU-CH32V003-red.svg)
+
+Thư viện quản lý năng lượng cho vi điều khiển CH32V003: đưa chip vào **Sleep** hoặc **Standby**, đánh thức bằng **sườn tín hiệu trên chân bất kỳ** và/hoặc **hẹn giờ**. Chạy được trên cả 3 gói vỏ J4M6, A4M6, F4P6.
 
 ---
 
 ## 🚀 Tính năng nổi bật
 
-- **Ngủ nhẹ giữ bộ nhớ (Ultra Low Power Sleep):** Hạ xung nhịp CPU, ngắt xung clock ngoại vi không sử dụng và đi vào chế độ `wfi`. Khi có ngắt, chip tỉnh giấc và tiếp tục thực thi ngay dòng lệnh phía dưới mà không bị mất RAM.
-- **Ngủ sâu cực hạn (Standby Mode):** Ép dòng tiêu thụ xuống mức $\approx 10\mu\text{A}$, ngắt toàn bộ lõi CPU và RAM. Khi kích hoạt chân Wakeup phần cứng (PD0), chip sẽ tự động **Hardware Reset** và khởi chạy lại từ hàm `main()`. _(Dành cho A4M6 và F4P6)_.
-- **Cấu hình Wakeup linh hoạt:** Hỗ trợ kích hoạt đánh thức qua bất kỳ chân GPIO nào có ngắt EXTI (Line 0–7) với kiểu kích hoạt cạnh lên (`RISING`), cạnh xuống (`FALLING`), hoặc cả hai (`CHANGE`).
-- **Bảo vệ mạch nạp SWD:** Tự động ngắt chân Debug SWIO (PD1) trước khi ngủ để tránh rò dòng qua WCH-LinkE và khôi phục ngay sau khi thức dậy.
+- **Hai mức ngủ, cùng cách dùng:** `powerSleep()` (hạ clock HSI/256, tắt clock ngoại vi) và `powerStandby()` (tắt mọi clock trừ LSI, ~10µA theo datasheet).
+- **Thức dậy chạy tiếp, giữ RAM:** CH32V003 thức từ cả Sleep lẫn Standby đều chạy tiếp lệnh ngay sau hàm ngủ, không reset về đầu `main()`. Clock hệ thống, clock ngoại vi, SysTick và chế độ SWIO được khôi phục như trước khi ngủ.
+- **Nhiều nguồn đánh thức cùng lúc:** nhiều chân (sườn xuống / lên / cả hai) cộng thêm hẹn giờ. Nguồn nào xảy ra trước thì chip thức trước.
+- **Hẹn giờ từ vài ms tới hàng giờ:** tự chia thành nhiều lần AWU (mỗi lần tối đa ~30 giây). Cấu hình được tính sẵn trong `powerConfigureWakeup()`, không tính lúc clock thấp.
+- **Không chiếm ngắt:** dùng sự kiện EXTI (WFE), `EXTI7_0_IRQHandler` vẫn để dành cho chương trình.
 
 ---
 
-## 📑 Cấu trúc hàm (API Reference)
+## 📦 Cài đặt (Installation)
 
-### 1. Hàm cấu hình chân đánh thức (Wakeup Pin)
-
-| Hàm xử lý                                            | Tham số                                                                     | Giá trị trả về | Mô tả                                                                                                           |
-| ---------------------------------------------------- | --------------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------- |
-| **`enableWakeupPin(mcuPin, trigger)`**               | `uint8_t mcuPin`, `WakeupTrigger_t trigger`                                 | `void`         | Cấu hình chân vật lý trên board làm chân Wakeup. `trigger`: `WAKEUP_FALLING`, `WAKEUP_RISING`, `WAKEUP_CHANGE`. |
-| **`enableWakeupPinPort(GPIOx, pinNumber, trigger)`** | `const GPIO_TypeDef* GPIOx`, `uint8_t pinNumber`, `WakeupTrigger_t trigger` | `void`         | Cấu hình trực tiếp qua cổng `GPIOA/C/D` và chỉ số pin (0–7) tương ứng với EXTI Line.                            |
-
-### 2. Hàm chuyển chế độ tiết kiệm điện
-
-| Hàm xử lý                  | Tham số | Giá trị trả về | Mô tả                                                                                                     |
-| -------------------------- | ------- | -------------- | --------------------------------------------------------------------------------------------------------- |
-| **`sleepUltraLowPower()`** | `void`  | `void`         | Hạ xung hệ thống, đưa CPU vào Sleep Mode (`wfi`). Thức dậy tiếp tục chạy tiếp code bên dưới.              |
-| **`enterStandbyMode()`**   | `void`  | `void`         | Đưa chip vào Standby Mode. Thức dậy qua chân PD0 sẽ Reset chip từ đầu main. _(Không khả dụng trên J4M6)_. |
-
----
-
-## ⚙️ Các chế độ ngắt Wakeup (`WakeupTrigger_t`)
-
-```c
-typedef enum {
-    WAKEUP_FALLING = 0, // Kích hoạt khi chân chuyển từ HIGH xuống LOW (Dùng PULLUP nội)
-    WAKEUP_RISING  = 1, // Kích hoạt khi chân chuyển từ LOW lên HIGH (Dùng PULLDOWN nội)
-    WAKEUP_CHANGE  = 2  // Kích hoạt khi có bất kỳ sự thay đổi trạng thái nào
-} WakeupTrigger_t;
-
+```ini
+lib_deps =
+    https://github.com/voc-vach-iot-ch32v003/ch32v003_power.git
 ```
 
+Thư viện tự kéo theo `ch32v003_gpio`.
+
 ---
 
-## 📝 Code mẫu sử dụng
+## ⚙️ Cấu hình môi trường
 
-### 1. Sử dụng Chế độ Ngủ nhẹ (Sleep Ultra Low Power)
+```ini
+build_flags = -DCH32V003_J4M6 ; hoặc -DCH32V003_A4M6 / -DCH32V003_F4P6
+```
+
+Các macro sau có giá trị mặc định, ghi đè được trong `include/sys_config.h` của dự án:
+
+| Macro | Mặc định | Ý nghĩa |
+| :-- | :-- | :-- |
+| `POWER_LSI_FREQUENCY_HZ` | `128000` | Tần số LSI để tính thời gian hẹn giờ. LSI lệch theo từng chip: bàn test đo được 109kHz, 112kHz, 123kHz (chip ngủ dài hơn yêu cầu 4–17%). Hiệu chỉnh: ngủ 10000ms, bấm giờ thực tế `T` ms, đặt `128000 * 10000 / T`. |
+| `POWER_SLEEP_DISABLE_SWD` | `1` | `1` = tắt SWD trong lúc ngủ để không rò dòng qua mạch nạp (tự khôi phục khi thức). Terminal SWIO có thể hiện vài ký tự rác quanh lúc ngủ; nếu cần log qua `printf` ngay sau khi thức, chờ ~50ms để mạch nạp đồng bộ lại. |
+
+> ⚠️ **Chân đánh thức:** mỗi số chân 0–7 chỉ dùng được cho một Port (VD: PC3 và PD3 dùng chung đường EXTI3). Thư viện tự bật điện trở kéo nội ngược chiều sườn: `FALLING` bật Pull-up, `RISING` / `CHANGE` bật Pull-down.
+>
+> ⚠️ **SysTick dừng trong lúc ngủ:** `millis()` / `micros()` không tính phần thời gian ngủ.
+
+---
+
+## 📝 Code mẫu sử dụng (Quick Start)
+
+Chớp LED rồi ngủ Standby, thức dậy sau 2 giây hoặc khi nhấn nút (nối GND):
 
 ```c
 #include "ch32fun.h"
-#include <ch32v003_gpio.h>
-#include <ch32v003_delay.h>
-#include <ch32v003_power.h>
+#include "ch32v003_delay.h"
+#include "ch32v003_gpio.h"
+#include "ch32v003_power.h"
 
-#define BUTTON_PIN MCU_PIN3 // Chân nút nhấn đánh thức
-#define LED_PIN    MCU_PIN4 // Chân LED hiển thị
+#define LED_PIN    MCU_PIN3 // Chân vật lý số 3 (J4M6: PA2, A4M6: PC3, F4P6: PD6)
+#define BUTTON_PIN MCU_PIN5 // Chân vật lý số 5 (J4M6: PC1, A4M6: PC6, F4P6: PA1)
 
-void setup() {
+static const POWER_WakeupPin_t wakeupPins[] = {
+    {BUTTON_PIN, POWER_WAKEUP_FALLING},
+};
+
+static const POWER_WakeupConfiguration_t wakeupConfig = {
+    .pins = wakeupPins,
+    .pinCount = 1,
+    .timeoutMs = 2000,
+};
+
+static void setup(void)
+{
     pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, HIGH);
-
-    // Cấu hình BUTTON_PIN làm chân Wakeup khi nhấn (Cạnh xuống FALLING)
-    enableWakeupPin(BUTTON_PIN, WAKEUP_FALLING);
+    powerConfigureWakeup(&wakeupConfig);
 }
 
-void loop() {
-    // Chớp LED báo hiệu trước khi đi ngủ
+static void loop(void)
+{
     digitalWrite(LED_PIN, HIGH);
-    delayMs(200);
+    delayMs(50);
     digitalWrite(LED_PIN, LOW);
 
-    // Đưa CPU vào chế độ ngủ tiết kiệm điện
-    sleepUltraLowPower();
-
-    // --- CPU ĐÃ THỨC DẬY ---
-    // Code chạy tiếp ngay tại đây sau khi có nút nhấn trên BUTTON_PIN
-    for (uint8_t i = 0; i < 5; i++) {
-        digitalWrite(LED_PIN, HIGH);
-        delayMs(50);
-        digitalWrite(LED_PIN, LOW);
-        delayMs(50);
-    }
+    powerStandby(); // Thức dậy chạy tiếp ngay dòng dưới, RAM giữ nguyên
 }
 
-int main() {
+int main(void)
+{
     SystemInit();
-    setup();
+    delayMs(1000); // Khoảng chờ an toàn tránh brick chip (chip ngủ vẫn nạp lại được nhờ khoảng này)
 
-    while (1) {
+    setup();
+    while (1)
+    {
         loop();
     }
 }
-
-```
-
-### 2. Sử dụng Chế độ Ngủ sâu cực hạn (Standby Mode)
-
-```c
-#include "ch32fun.h"
-#include <ch32v003_gpio.h>
-#include <ch32v003_delay.h>
-#include <ch32v003_power.h>
-
-#define LED_PIN MCU_PIN4
-
-int main() {
-    SystemInit();
-
-    pinMode(LED_PIN, OUTPUT);
-
-    // Báo hiệu chip mới khởi động lại / vừa thức dậy từ Standby
-    digitalWrite(LED_PIN, HIGH);
-    delayMs(1000);
-    digitalWrite(LED_PIN, LOW);
-
-    // Đưa chip vào Standby (Cần tác động mức HIGH vào chân PD0 để Reset thức giấc)
-#ifndef CH32V003_J4M6
-    enterStandbyMode();
-#endif
-
-    while (1) {
-        // Không bao giờ chạy tới đây vì Standby sẽ Reset chip về main()
-    }
-}
-
 ```
 
 ---
+
+## 📁 Danh sách Ví dụ mẫu (Examples)
+
+| Ví dụ | Mô tả |
+| :-- | :-- |
+| [`01_sleep_button_wakeup`](examples/01_sleep_button_wakeup/) | `powerSleep()` đánh thức bằng nút nhấn; LED chớp theo số lần thức để thấy RAM được giữ. |
+| [`02_standby_button_timer`](examples/02_standby_button_timer/) | `powerStandby()` đánh thức bằng nút nhấn **hoặc** sau 10 giây; in số lần thức qua SWIO, hướng dẫn hiệu chỉnh LSI. |
+
+---
+
+## 📑 Tra cứu API (API Reference)
+
+### Hàm
+
+| Hàm xử lý | Tham số | Giá trị trả về | Mô tả |
+| :-- | :-- | :-- | :-- |
+| `powerConfigureWakeup(config)` | `const POWER_WakeupConfiguration_t* config` | `void` | Khai báo nguồn đánh thức cho cả 2 chế độ ngủ. Lần gọi sau thay thế hoàn toàn lần trước. `NULL` = xóa hết. |
+| `powerSleep()` | Không | `uint8_t` | Ngủ Sleep tới khi có nguồn đánh thức. Trả `0` (không ngủ) nếu chưa khai báo nguồn nào. |
+| `powerStandby()` | Không | `uint8_t` | Ngủ Standby tới khi có nguồn đánh thức. Trả `0` (không ngủ) nếu chưa khai báo nguồn nào. |
+
+### Kiểu dữ liệu
+
+| Kiểu | Thành phần | Mô tả |
+| :-- | :-- | :-- |
+| `POWER_WakeupTrigger_t` | `POWER_WAKEUP_FALLING`, `POWER_WAKEUP_RISING`, `POWER_WAKEUP_CHANGE` | Sườn tín hiệu đánh thức. |
+| `POWER_WakeupPin_t` | `uint8_t mcuPin`, `POWER_WakeupTrigger_t trigger` | Một chân đánh thức (`MCU_PIN<n>` hoặc chân chức năng). |
+| `POWER_WakeupConfiguration_t` | `const POWER_WakeupPin_t* pins`, `uint8_t pinCount`, `uint32_t timeoutMs` | Toàn bộ nguồn đánh thức. `timeoutMs = 0` = không hẹn giờ. |
+
+---
+
+## 📄 Giấy phép (License) & Tác giả
+
+- **Tác giả:** [Vọc Vạch IoT](https://github.com/voc-vach-iot)
+- **Giấy phép:** Phát hành theo giấy phép [MIT License](LICENSE).
